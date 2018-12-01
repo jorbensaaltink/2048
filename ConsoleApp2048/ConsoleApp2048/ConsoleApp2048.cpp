@@ -11,14 +11,19 @@
 
 #include <stack>
 #include <vector>
+#include <thread>
+#include <mutex>
 
 using namespace std;
+
 
 int score = 0;
 
 enum axis { x, y };
 
 class play {
+	mutex mutex;
+	vector<thread> workers;
 	int game[4][4];
 	void initialize();
 	void display();
@@ -151,15 +156,19 @@ bool play::handle_pull(int base_pos, int pull_pos, int static_pos, axis axis) {
 	if (axis == x) {	// At X the Y is static
 		if (game[pull_pos][static_pos]) {	// Check pull position is set
 			if (!game[base_pos][static_pos]) {	// Check if base position is 0
+				mutex.lock();
 				game[base_pos][static_pos] = game[pull_pos][static_pos];
 				game[pull_pos][static_pos] = 0;
+				mutex.unlock();
 				return true;
 			}
 			else {
 				if (game[base_pos][static_pos] == game[pull_pos][static_pos]) {
+					mutex.lock();
 					game[base_pos][static_pos] += game[pull_pos][static_pos];
 					game[pull_pos][static_pos] = 0;
 					score += game[base_pos][static_pos];
+					mutex.unlock();
 					return true;
 				}
 				else {
@@ -171,15 +180,19 @@ bool play::handle_pull(int base_pos, int pull_pos, int static_pos, axis axis) {
 	else if (axis == y) {	// At Y the X is static
 		if (game[static_pos][pull_pos]) {	// Check pull position is set
 			if (!game[static_pos][base_pos]) {	// Check if base position is 0
+				mutex.lock();
 				game[static_pos][base_pos] = game[static_pos][pull_pos];
 				game[static_pos][pull_pos] = 0;
+				mutex.unlock();
 				return true;
 			}
 			else {
 				if (game[static_pos][base_pos] == game[static_pos][pull_pos]) {
+					mutex.lock();
 					game[static_pos][base_pos] += game[static_pos][pull_pos];
 					game[static_pos][pull_pos] = 0;
 					score += game[static_pos][pull_pos];
+					mutex.unlock();
 					return true;
 				}
 				else {
@@ -193,27 +206,51 @@ bool play::handle_pull(int base_pos, int pull_pos, int static_pos, axis axis) {
 
 void play::move_left() {
 	for (int y = 0; y < 4; y++) {
-		pull_row_plus(y, x);
+		workers.push_back(thread(&play::pull_row_plus, this, y, x));
 	}
+
+	for (auto &thread : workers) {
+		thread.join();
+	}
+
+	workers.clear();
 }
 
 void play::move_right() {
 	for (int y = 0; y < 4; y++) {
-		pull_row_minus(y, x);
+		workers.push_back(thread(&play::pull_row_minus, this, y, x));
 	}
+
+	for (auto &thread : workers) {
+		thread.join();
+	}
+
+	workers.clear();
 }
 
 void play::move_up() {
 	for (int x = 0; x < 4; x++) {
-		pull_row_plus(x, y);
+		workers.push_back(thread(&play::pull_row_plus, this, x, y));
 	}
+
+	for (auto &thread : workers) {
+		thread.join();
+	}
+
+	workers.clear();
 }
 
 
 void play::move_down() {
 	for (int x = 0; x < 4; x++) {
-		pull_row_minus(x, y);
+		workers.push_back(thread(&play::pull_row_minus, this, x, y));
 	}
+
+	for (auto &thread : workers) {
+		thread.join();
+	}
+
+	workers.clear();
 }
 
 
